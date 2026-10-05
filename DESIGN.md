@@ -86,3 +86,20 @@ Every query on widgets and submissions filters by owner_id. A request never read
 - GET /api/dashboard/submissions
 - GET /api/dashboard/stats
   - counts over time, per widget, geo breakdown
+
+## Embed Flow
+
+1. The owner creates a widget through the management API and receives the embed snippet.
+2. The owner pastes the snippet into the customer site.
+3. The browser loads widget.js from the API. It is a versioned, long-cached file.
+4. widget.js reads the widget id from its own script tag and calls GET /widgets/:id/config.
+5. widget.js renders the form from the config into the page.
+6. The visitor fills the form and submits. widget.js sends POST /submissions to the API from a different origin.
+7. The API validates, rate limits, filters spam, enriches, stores, and returns 201 or a clean 4xx error.
+8. The owner sees the submission and stats through the dashboard API.
+
+## Layers
+
+- routes: HTTP only, no business logic
+- services: validation rules, spam check, enrichment, side effects
+- repositories: all database access
