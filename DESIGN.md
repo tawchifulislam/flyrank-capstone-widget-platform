@@ -42,3 +42,47 @@ No real hosting, domain, or CDN. The customer site is a plain HTML file served f
 ### Tenancy rule
 
 Every query on widgets and submissions filters by owner_id. A request never reads or writes a row that belongs to another owner.
+
+## API Contracts
+
+### Path 1: Owner manages widgets (authenticated)
+
+- POST /api/widgets
+- GET /api/widgets
+- GET /api/widgets/:id
+- PUT /api/widgets/:id
+- DELETE /api/widgets/:id
+- Header: Authorization: Bearer &lt;token&gt;
+- Missing or invalid token: 401
+- Widget belongs to another owner: 404
+- Create and read responses include the embed snippet:
+  `<script src="http://localhost:3001/widget.js?id=<widget_id>"></script>`
+
+### Path 2: Customer site loads the widget (public, cached, CORS)
+
+- GET /widget.js?id=<widget_id>
+  - versioned bundle, Cache-Control: public, max-age=31536000, immutable
+- GET /widgets/:id/config
+  - small JSON payload, Cache-Control: public, max-age=60
+  - unknown widget: 404
+
+### Path 3: Visitor submits the form (public, CORS, protected)
+
+- POST /submissions
+- Body: { widgetId, data, honeypot }
+- Steps in order:
+  1. CORS and preflight (OPTIONS)
+  2. Payload size limit: too large gives 413
+  3. Validation: bad payload gives 400 with a JSON error
+  4. Rate limit: too many requests gives 429
+  5. Spam check: filled honeypot is rejected without telling the bot why
+  6. Geo enrichment: provider A, then provider B, then store without geo
+  7. Store the submission
+  8. Side effect (email or webhook): failure is logged and never changes the response
+- Success: 201 with { id }
+
+### Dashboard (authenticated, owner only)
+
+- GET /api/dashboard/submissions
+- GET /api/dashboard/stats
+  - counts over time, per widget, geo breakdown
