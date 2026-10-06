@@ -901,3 +901,104 @@ curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissi
 {"total":1,"limit":20,"offset":0,"items":[{"id":"1","widgetId":"demo-widget","data":{"email":"demo-visitor@example.com","message":"hello from a clean run"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T05:10:38.549Z"}]}
 HTTP 200
 ```
+
+## Idempotency
+
+A visitor's browser can send the same submission twice, for example when the network is slow and the request is retried. The widget sends an Idempotency-Key header with each submission. The server keeps one row per key and widget, so a retried request returns the original id with status 200, and the geo lookup and the email are not run a second time. All requests below come from `scripts/test-idempotency.sh`, run against the demo widget.
+
+### The retried action happens once
+
+First request with a new key (201) and the same request retried twice (200, same id):
+
+```text
+curl -s -w "\nHTTP_%{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type:application/json" -H "Idempotency-Key: retry-key-1791264485" -d '{"widgetId":"demo-widget","data":{"email":"idem@example.com","message":"retried submission"}}'
+```
+
+```text
+{"id":"2"}
+HTTP_201
+```
+
+```text
+{"id":"2"}
+HTTP_200
+```
+
+```text
+{"id":"2"}
+HTTP_200
+```
+
+A different key is a new submission (201). A request without any key still works (201):
+
+```text
+{"id":"3"}
+HTTP_201
+```
+
+```text
+{"id":"4"}
+HTTP_201
+```
+
+An invalid key is rejected with a clean error:
+
+```text
+curl -s -w "\nHTTP_%{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type:application/json" -H "Idempotency-Key: bad key!" -d '{"widgetId":"demo-widget","data":{"email":"idem@example.com","message":"retried submission"}}'
+```
+
+```text
+{"error":"Invalid Idempotency-Key"}
+HTTP_400
+```
+
+Four requests with the same new key sent at the same time. One is created (201) and three are answered as replays (200), all with the same id:
+
+```text
+{"id":"5"}
+HTTP_201
+{"id":"5"}
+HTTP_200
+{"id":"5"}
+HTTP_200
+{"id":"5"}
+HTTP_200
+```
+
+Rows stored per email. <idem@example.com> has 2 rows (one for each of the two keys, although the first key was sent 3 times), <nokey@example.com> has 1, and <parallel@example.com> has 1 (although it was sent 4 times at once):
+
+```text
+docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select data->>'email' as email, count(*) as rows from submissions where data->>'email' in ('idem@example.com','nokey@example.com','parallel@example.com') group by 1 order by 1;"
+```
+
+```text
+        email         | rows 
+----------------------+------
+ idem@example.com     |    2
+ nokey@example.com    |    1
+ parallel@example.com |    1
+(3 rows)
+```
+
+The background job sent one email per stored submission (ids 2, 3, 4, 5) and none for the replays:
+
+```text
+docker compose logs app --tail 60 | grep "EMAIL sent"
+```
+
+```text
+app-1  | EMAIL sent to owner 638f86fd-10a3-4050-9b80-e31fa898d50d: new submission 2 on widget demo-widget
+app-1  | EMAIL sent to owner 638f86fd-10a3-4050-9b80-e31fa898d50d: new submission 3 on widget demo-widget
+app-1  | EMAIL sent to owner 638f86fd-10a3-4050-9b80-e31fa898d50d: new submission 4 on widget demo-widget
+app-1  | EMAIL sent to owner 638f86fd-10a3-4050-9b80-e31fa898d50d: new submission 5 on widget demo-widget
+```
+
+### The widget sends a key with every submission
+
+The browser first sends a CORS preflight, because the request carries a custom header. The server allows the header Idempotency-Key and the preflight answers 204:
+
+![CORS preflight for the Idempotency-Key header](docs/browser-idempotency-key.png)
+
+Then the real POST request from the demo customer site carries the header Idempotency-Key and the server answers 201:
+
+![POST request with the Idempotency-Key header](docs/browser-idempotency-post.png)

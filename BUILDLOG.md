@@ -21,6 +21,7 @@
 - Designed the dashboard endpoints, the SQL for counts per day, per widget, and per country, and scripts/test-dashboard.sh with the cross tenant checks
 - Wrote scripts/refresh-tokens.sh so the test tokens in .env can be renewed with one command
 - Wrote the Dockerfile, the compose file with a database health check, the idempotent seed script, and scripts/clean-run.sh that proves a start from nothing
+- Designed the idempotency key flow (header, partial unique index, replay answered with 200) and wrote scripts/test-idempotency.sh with the retry and parallel cases
 
 ## Where AI was wrong or needed fixing
 
@@ -39,6 +40,8 @@
 - The first network screenshot hid the host of the requests and mixed in requests from browser extensions. I retook the proof as a Headers panel screenshot that shows the request URL, the Origin header, the status, and the CORS response header together.
 - I expected owner B to have zero submissions in the first dashboard check. It had one, from the abuse test that posted to B's widget. The result was correct and my expectation was wrong, so the evidence describes what really happened.
 - Nothing broke in this step. The container log prints "injected env (0) from .env" because there is no .env file inside the container. It is harmless noise from the dotenv package.
+- Nothing failed in the API test. Adding the new header meant the CORS preflight had to allow it, otherwise a browser would block every submission, so I checked the widget in a real browser and not only with curl.
+- After the clean run wiped the database, the older customer-site/index.html (widget 9XaNF0jKmUQA) no longer worked. The demo page customer-site/demo.html uses the seeded demo-widget.
 
 ## What I changed and why
 
@@ -81,3 +84,7 @@
 - The seed step is separate and safe to run twice. It creates one demo owner and one demo widget (demo-widget), so there is something to try on a clean machine.
 - The demo owner password and the JWT_SECRET placeholder in .env.example are public demo values. A real deployment must set its own secret. This goes into the README.
 - A new page customer-site/demo.html embeds the demo widget. The older index.html is left as it was, because the earlier evidence refers to it.
+- Idempotency keys are scoped per widget by a partial unique index, so the database itself guarantees one row per key even for requests that arrive at the same time
+- A replay returns the original id with status 200 and skips the geo lookup and the email, so the retried action happens once
+- The widget creates a new key when the form is shown and again after each successful submission. A failed attempt reuses the same key, so retrying it cannot create a duplicate.
+- Known limits: a key sent again with different data returns the first submission and does not report a mismatch, and keys never expire. This goes into the README limitations note.
