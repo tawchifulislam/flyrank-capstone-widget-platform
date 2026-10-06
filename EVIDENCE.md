@@ -605,3 +605,48 @@ curl -s -o /dev/null -w "new %{http_code}\n" http://localhost:3001/assets/widget
 old 404
 new 200
 ```
+
+### The widget renders on a page served from a different origin
+
+The customer site is the plain HTML file `customer-site/index.html`, served on port 5500 with `npx -y serve customer-site -l 5500`. The API runs on port 3001, so the page and the API are different origins. The page only contains this one script tag:
+
+```text
+<script src="http://localhost:3001/widget.js?id=9XaNF0jKmUQA"></script>
+```
+
+The page shows its own origin, the widget that was drawn from the config, and the success message after a visitor submitted the form:
+
+![Customer site with the embedded widget](docs/customer-site-widget.png)
+
+The submission request in the browser. The request goes to localhost:3001, carries the header Origin: <http://localhost:5500>, and the API answers 201 with Access-Control-Allow-Origin: *:
+
+![Cross-origin submission request headers](docs/network-cross-origin.png)
+
+The widget script and the config come from the cache. The loader and the versioned bundle are served from the disk cache, and the config is revalidated with a 304:
+
+![Widget load requests](docs/network-widget-load.png)
+
+The submissions stored from the browser, with the mock geo enrichment. The message text is exactly what was typed into the form. The ids are many because the form was submitted several times while testing:
+
+```text
+docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select id, widget_id, data, country, city from submissions where data->>'email' = 'browser@example.com' order by id;"
+```
+
+```text
+ id |  widget_id   |                         data                                   |country   |    city    
+----+--------------+-------------------------------------------------------------------------------------------+------------+------------
+ 15 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 16 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 17 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 18 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 19 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 20 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 21 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 22 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 23 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 24 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 25 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 26 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+ 27 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
+(13 rows)
+```
