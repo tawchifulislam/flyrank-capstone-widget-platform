@@ -4,18 +4,12 @@ const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const config = require('../config');
 const userRepository = require('../repositories/userRepository');
+const { HttpError } = require('../errors');
 
 const credentialsSchema = z.object({
   email: z.string().email().max(254),
   password: z.string().min(8).max(100),
 });
-
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
 
 function parseCredentials(body) {
   const parsed = credentialsSchema.safeParse(body);
@@ -56,4 +50,4 @@ async function login(body) {
   return { user: { id: user.id, email: user.email }, token: signToken(user) };
 }
 
-module.exports = { signup, login, HttpError };
+module.exports = { signup, login };
