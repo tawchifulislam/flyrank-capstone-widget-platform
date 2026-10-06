@@ -1,7 +1,7 @@
 const express = require('express');
 const config = require('./config');
 const authRoutes = require('./routes/auth');
-const requireAuth = require('./middleware/auth');
+const widgetRoutes = require('./routes/widgets');
 
 const app = express();
 
@@ -12,9 +12,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.get('/api/me', requireAuth, (req, res) => {
-  res.json({ ownerId: req.ownerId });
-});
+app.use('/api/widgets', widgetRoutes);
 
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
