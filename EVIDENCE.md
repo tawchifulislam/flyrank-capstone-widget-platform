@@ -330,3 +330,57 @@ Stored rows by email after all tests: the 5 burst submissions that were accepted
  visitor@example.com |     2
 (4 rows)
 ```
+
+## Enrichment and safe side effects
+
+### IP to geo enrichment uses a provider fallback chain: provider A down, provider B answers, submission enriched
+
+The geo providers are mocked (GEO_MODE=mock) so the result is deterministic. The mock provider A answers with Mockland A and the mock provider B answers with Mockland B. The request header X-Mock-Geo-Down switches a mock provider off for that request. All requests below come from `scripts/test-geo.sh`.
+
+Provider A up, enriched by provider A:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -d '{"widgetId":"9XaNF0jKmUQA","data":{"email":"geo-a@example.com","message":"provider A answers"}}'
+```
+
+```text
+{"id":"10"}
+HTTP 201
+```
+
+Provider A down, enriched by provider B:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -H "X-Mock-Geo-Down: a" -d '{"widgetId":"9XaNF0jKmUQA","data":{"email":"geo-b@example.com","message":"provider A down"}}'
+```
+
+```text
+{"id":"11"}
+HTTP 201
+```
+
+### All providers down: submission still succeeds without geo (degrade, never fail)
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -H "X-Mock-Geo-Down: a,b" -d '{"widgetId":"9XaNF0jKmUQA","data":{"email":"geo-none@example.com","message":"all providers down"}}'
+```
+
+```text
+{"id":"12"}
+HTTP 201
+```
+
+Stored rows for the three requests. Row 10 was enriched by A, row 11 by B, row 12 has no geo:
+
+```text
+docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select id, data->>'email' as email, country, city from submissions where data->>'email' like 'geo-%' order by id;"
+```
+
+```text
+ id |        email         |  country   |    city    
+----+----------------------+------------+------------
+ 10 | geo-a@example.com    | Mockland A | Alpha City
+ 11 | geo-b@example.com    | Mockland B | Beta City
+ 12 | geo-none@example.com |            | 
+(3 rows)
+```

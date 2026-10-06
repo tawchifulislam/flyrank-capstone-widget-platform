@@ -10,6 +10,8 @@
 - Wrote scripts/test-submissions.sh so all submission tests run together and the output is captured to a file
 - Designed the two-layer rate limiter (per IP and widget, plus per IP overall) and the honeypot check
 - Wrote scripts/test-abuse.sh so the burst, the recovery, and the honeypot tests run in one go
+- Designed the geo enrichment service with a provider A then provider B fallback chain, and the mock mode used to prove it
+- Wrote scripts/test-geo.sh so the three fallback cases run together
 
 ## Where AI was wrong or needed fixing
 
@@ -20,6 +22,7 @@
 - My first test commands printed their output straight to the terminal, so most of it scrolled away and I could not paste it into EVIDENCE.md. I fixed this with a script that writes everything to a file.
 - psql opened a pager after the last query, so the terminal showed only a colon. I fixed it by passing -P pager=off in the script.
 - Nothing broke in this step. One limit of the design: a burst on one widget blocks that visitor on that widget until the 10 second window ends, so the test for "legitimate traffic still works" uses a different widget and the health endpoint.
+- Nothing broke in this step. A real lookup cannot be shown from localhost because the visitor IP is ::1, which no provider can locate. That is why the proof uses mock providers.
 
 ## What I changed and why
 
@@ -35,3 +38,7 @@
 - Limits live in .env (RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX, IP_RATE_LIMIT_WINDOW_MS, IP_RATE_LIMIT_MAX) so they can be changed without code changes
 - A filled honeypot returns a normal looking 201 and stores nothing, so the bot gets no hint about why it was dropped
 - The rate limit counters are in memory. They reset on restart and are not shared between several server copies. This goes into the README limitations note.
+- GEO_MODE=mock uses two local fake providers with different answers, so the evidence shows exactly which provider enriched each row. GEO_MODE=real uses ip-api.com first and ipapi.co second.
+- The X-Mock-Geo-Down header only works in mock mode, so a real deployment cannot be switched by a visitor. It lets me turn a provider off per request without restarting the server.
+- Every provider call has a timeout (GEO_TIMEOUT_MS) and every failure is caught, so a slow or dead provider can never break or delay a submission for long
+- Private and loopback addresses are not sent to real providers
