@@ -7,6 +7,7 @@ router.post('/', async (req, res, next) => {
   try {
     const result = await submissionService.submit(req.body, req.ip, {
       mockGeoDown: req.get('x-mock-geo-down'),
+      mockEmailFail: req.get('x-mock-email-fail'),
     });
     res.status(201).json(result);
   } catch (err) {

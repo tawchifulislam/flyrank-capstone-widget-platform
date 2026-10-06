@@ -3,6 +3,7 @@ const { HttpError } = require('../errors');
 const widgetRepository = require('../repositories/widgetRepository');
 const submissionRepository = require('../repositories/submissionRepository');
 const geoService = require('./geoService');
+const notificationService = require('./notificationService');
 
 const bodySchema = z.object({
   widgetId: z.string().min(1).max(64),
@@ -60,6 +61,10 @@ async function submit(body, ip, options = {}) {
     country: geo ? geo.country : null,
     city: geo ? geo.city : null,
   });
+  notificationService.dispatch(
+    { id: row.id, widgetId: widget.id, ownerId: widget.owner_id },
+    { mockFail: options.mockEmailFail === 'true' },
+  );
   return { id: row.id };
 }
 

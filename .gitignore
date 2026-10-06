@@ -151,3 +151,4 @@ vite.config.ts.timestamp-*
 submission-output.txt
 abuse-output.txt
 geo-output.txt
+sideeffect-output.txt
