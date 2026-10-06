@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo Customer Site</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 0 16px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Demo Customer Site</h1>
+  <p id="origin"></p>
+  <script src="http://localhost:3001/widget.js?id=demo-widget"></script>
+  <script>
+    document.getElementById('origin').textContent = 'This page is served from ' + location.origin + ' and the API runs on http://localhost:3001';
+  </script>
+</body>
+
+</html>
