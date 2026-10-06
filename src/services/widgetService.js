@@ -83,4 +83,21 @@ async function remove(ownerId, id) {
   }
 }
 
-module.exports = { create, list, get, update, remove };
+async function getPublicConfig(id) {
+  const row = await widgetRepository.findPublicById(id);
+  if (!row) {
+    throw new HttpError(404, 'Widget not found');
+  }
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    description: row.description,
+    buttonText: row.button_text,
+    fields: row.fields,
+    displayOptions: row.display_options,
+    version: row.version,
+  };
+}
+
+module.exports = { create, list, get, update, remove, getPublicConfig };
