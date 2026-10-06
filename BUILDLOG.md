@@ -12,6 +12,8 @@
 - Wrote scripts/test-abuse.sh so the burst, the recovery, and the honeypot tests run in one go
 - Designed the geo enrichment service with a provider A then provider B fallback chain, and the mock mode used to prove it
 - Wrote scripts/test-geo.sh so the three fallback cases run together
+- Designed the email side effect as a background job with 3 attempts, growing waits, and a final ALERT log
+- Wrote scripts/test-sideeffect.sh to run the working and the failing email case together
 
 ## Where AI was wrong or needed fixing
 
@@ -23,6 +25,7 @@
 - psql opened a pager after the last query, so the terminal showed only a colon. I fixed it by passing -P pager=off in the script.
 - Nothing broke in this step. One limit of the design: a burst on one widget blocks that visitor on that widget until the 10 second window ends, so the test for "legitimate traffic still works" uses a different widget and the health endpoint.
 - Nothing broke in this step. A real lookup cannot be shown from localhost because the visitor IP is ::1, which no provider can locate. That is why the proof uses mock providers.
+- The test script output does not contain the server log, so the proof of the retries and the ALERT could not come from the script file alone. I copied the server log lines from the terminal that runs the server.
 
 ## What I changed and why
 
@@ -42,3 +45,7 @@
 - The X-Mock-Geo-Down header only works in mock mode, so a real deployment cannot be switched by a visitor. It lets me turn a provider off per request without restarting the server.
 - Every provider call has a timeout (GEO_TIMEOUT_MS) and every failure is caught, so a slow or dead provider can never break or delay a submission for long
 - Private and loopback addresses are not sent to real providers
+- The email job runs after the row is stored and does not block the response. It uses setImmediate, so the visitor always gets the 201 first.
+- Retry waits are 200 ms and then 400 ms, and after the third failure the job logs an ALERT line that a log monitor could match
+- Only the mock email mode exists. It writes the email to the console. Replacing sendEmail in src/services/notificationService.js is the only change needed for a real mail server.
+- The job lives in memory, so a server crash during the retries loses it. This goes into the README limitations note.

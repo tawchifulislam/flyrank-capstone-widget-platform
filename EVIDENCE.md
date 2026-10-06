@@ -384,3 +384,53 @@ docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select id, 
  12 | geo-none@example.com |            | 
 (3 rows)
 ```
+
+### A failing confirmation email does not prevent the submission from being stored
+
+The email is sent by a background job after the row is stored. The job tries 3 times, and logs an ALERT if all attempts fail. The header X-Mock-Email-Fail: true forces the mock email provider to fail for that request. All requests below come from `scripts/test-sideeffect.sh`.
+
+Normal submission, the email works. The response comes back in about 0.05 seconds:
+
+```text
+curl -s -w "\nHTTP %{http_code} in %{time_total}s\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -d '{"widgetId":"9XaNF0jKmUQA","data":{"email":"side-ok@example.com","message":"email works"}}'
+```
+
+```text
+{"id":"13"}
+HTTP 201 in 0.050484s
+```
+
+Submission with the email forced to fail. The response is still 201 and comes back in about 0.007 seconds, so the failing job and its retries do not slow down or break the request:
+
+```text
+curl -s -w "\nHTTP %{http_code} in %{time_total}s\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -H "X-Mock-Email-Fail: true" -d '{"widgetId":"9XaNF0jKmUQA","data":{"email":"side-fail@example.com","message":"email fails"}}'
+```
+
+```text
+{"id":"14"}
+HTTP 201 in 0.007451s
+```
+
+Both rows are stored:
+
+```text
+docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select id, data->>'email' as email from submissions where data->>'email' like 'side-%' order by id;"
+```
+
+```text
+ id |         email         
+----+-----------------------
+ 13 | side-ok@example.com
+ 14 | side-fail@example.com
+(2 rows)
+```
+
+Server log for the two requests. Submission 13 sent its email. Submission 14 failed 3 times and raised an ALERT:
+
+```text
+EMAIL sent to owner 3557ac2f-1dd3-4ea9-9c7e-aa0f2bd157f7: new submission 13 on widget 9XaNF0jKmUQA
+Notification attempt 1/3 for submission 14 failed: mock email provider is down
+Notification attempt 2/3 for submission 14 failed: mock email provider is down
+Notification attempt 3/3 for submission 14 failed: mock email provider is down
+ALERT: notification for submission 14 failed after 3 attempts
+```
