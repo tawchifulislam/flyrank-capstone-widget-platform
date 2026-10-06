@@ -24,6 +24,9 @@ services:
     environment:
       DATABASE_URL: postgres://widget:widget@db:5432/widgets
       PUBLIC_BASE_URL: http://localhost:3001
+      GEO_PROVIDER_A_ENABLED: ${GEO_PROVIDER_A_ENABLED:-true}
+      GEO_PROVIDER_B_ENABLED: ${GEO_PROVIDER_B_ENABLED:-true}
+      EMAIL_SIDE_EFFECT_FAIL: ${EMAIL_SIDE_EFFECT_FAIL:-false}
     depends_on:
       db:
         condition: service_healthy

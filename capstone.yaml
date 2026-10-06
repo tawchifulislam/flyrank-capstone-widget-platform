@@ -1,0 +1,46 @@
+name: flyrank-capstone-widget-platform
+run: docker compose up --build -d
+seed: docker compose exec -T app npm run seed
+test: bash scripts/test-probes.sh
+base_url: http://localhost:3001
+health: /health
+demo:
+  widget_id: demo-widget
+  owner_email: demo@example.com
+  owner_password: demo-password-123
+endpoints:
+  - method: POST
+    path: /submissions
+    auth: none
+    description:
+      public submission endpoint, CORS, validation, rate limit, honeypot,
+      enrichment, idempotency
+  - method: GET
+    path: /widgets/{id}/config
+    auth: none
+    description: public cached widget config
+  - method: GET
+    path: /widget.js?id={id}
+    auth: none
+    description: embed loader, loads the versioned bundle
+  - method: POST
+    path: /api/auth/signup
+    auth: none
+    description: create an owner and return a token
+  - method: POST
+    path: /api/auth/login
+    auth: none
+    description: log in and return a token
+  - method: GET
+    path: /api/widgets
+    auth: bearer
+    description:
+      list own widgets (also POST, GET, PUT, DELETE on /api/widgets/{id})
+  - method: GET
+    path: /api/dashboard/submissions
+    auth: bearer
+    description: own submissions with paging and a widget filter
+  - method: GET
+    path: /api/dashboard/stats
+    auth: bearer
+    description: counts per day, per widget, and per country
