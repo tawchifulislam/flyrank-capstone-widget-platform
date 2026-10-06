@@ -6,6 +6,7 @@ const widgetPublicRoutes = require('./routes/widgetPublic');
 const submissionRoutes = require('./routes/submissions');
 const publicCors = require('./middleware/publicCors');
 const { ipLimiter, widgetLimiter } = require('./middleware/rateLimit');
+const assetRoutes = require('./routes/assets');
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/widgets', widgetRoutes);
 app.use('/submissions', publicCors, ipLimiter, widgetLimiter, submissionRoutes);
 app.use('/widgets', publicCors, widgetPublicRoutes);
+app.use(assetRoutes);
 
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
