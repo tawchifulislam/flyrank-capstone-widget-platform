@@ -7,6 +7,7 @@ const submissionRoutes = require('./routes/submissions');
 const publicCors = require('./middleware/publicCors');
 const { ipLimiter, widgetLimiter } = require('./middleware/rateLimit');
 const assetRoutes = require('./routes/assets');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/widgets', widgetRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/submissions', publicCors, ipLimiter, widgetLimiter, submissionRoutes);
 app.use('/widgets', publicCors, widgetPublicRoutes);
 app.use(assetRoutes);
