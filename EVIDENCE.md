@@ -650,3 +650,134 @@ docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select id, 
  27 | 9XaNF0jKmUQA | {"email": "browser@example.com", "message": "Sent froma real browser on another origin"} | Mockland A | Alpha City
 (13 rows)
 ```
+
+## Owner dashboard
+
+All requests below come from `scripts/test-dashboard.sh`. Owner A owns widget 9XaNF0jKmUQA and owner B owns widget KE_dFrE5YI0Y. The visitor IP is never returned to the owner, only the country and the city.
+
+### Dashboard endpoints require authentication
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" http://localhost:3001/api/dashboard/submissions
+```
+
+```text
+{"error":"Missing or invalid token"}
+HTTP 401
+```
+
+### Dashboard endpoints return the submissions of the owner, newest first, with paging and a widget filter
+
+Owner A, latest 3 submissions:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions?limit=3" -H "Authorization: Bearer $TOKEN_A"
+```
+
+```text
+{"total":26,"limit":3,"offset":0,"items":[{"id":"27","widgetId":"9XaNF0jKmUQA","data":{"email":"browser@example.com","message":"Sent from a real browser on another origin"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T04:41:42.852Z"},{"id":"26","widgetId":"9XaNF0jKmUQA","data":{"email":"browser@example.com","message":"Sent from a real browser on another origin"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T04:41:22.287Z"},{"id":"25","widgetId":"9XaNF0jKmUQA","data":{"email":"browser@example.com","message":"Sent from a real browser on another origin"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T04:40:25.796Z"}]}
+HTTP 200
+```
+
+Owner A, filtered by own widget, second page of 2:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions?widgetId=9XaNF0jKmUQA&limit=2&offset=2" -H "Authorization: Bearer $TOKEN_A"
+```
+
+```text
+{"total":26,"limit":2,"offset":2,"items":[{"id":"25","widgetId":"9XaNF0jKmUQA","data":{"email":"browser@example.com","message":"Sent from a real browser on another origin"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T04:40:25.796Z"},{"id":"24","widgetId":"9XaNF0jKmUQA","data":{"email":"browser@example.com","message":"Sent from a real browser on another origin"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T04:37:45.513Z"}]}
+HTTP 200
+```
+
+Invalid query is rejected with a clean error:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions?limit=500" -H "Authorization: Bearer $TOKEN_A"
+```
+
+```text
+{"error":"Invalid query"}
+HTTP 400
+```
+
+### Submissions are tenant isolated: tenant A cannot read tenant B's submissions and the other way around
+
+Owner B asks for the submissions of owner A's widget:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions?widgetId=9XaNF0jKmUQA" -H "Authorization: Bearer $TOKEN_B"
+```
+
+```text
+{"error":"Widget not found"}
+HTTP 404
+```
+
+Owner A asks for the submissions of owner B's widget:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions?widgetId=KE_dFrE5YI0Y" -H "Authorization: Bearer $TOKEN_A"
+```
+
+```text
+{"error":"Widget not found"}
+HTTP 404
+```
+
+Owner B lists everything B can see. Owner A has 26 submissions, but B sees only the one submission that went to B's own widget (id 8):
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions" -H "Authorization: Bearer $TOKEN_B"
+```
+
+```text
+{"total":1,"limit":20,"offset":0,"items":[{"id":"8","widgetId":"KE_dFrE5YI0Y","data":{"email":"other@example.com","message":"other widget"},"country":null,"city":null,"createdAt":"2026-10-06T02:21:56.483Z"}]}
+HTTP 200
+```
+
+A visitor submits to owner B's widget, then B sees it (id 28) next to the earlier one, and still nothing of A's:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -d '{"widgetId":"KE_dFrE5YI0Y","data":{"email":"b-visitor@example.com","message":"for owner B"}}'
+```
+
+```text
+{"id":"28"}
+HTTP 201
+```
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions" -H "Authorization: Bearer $TOKEN_B"
+```
+
+```text
+{"total":2,"limit":20,"offset":0,"items":[{"id":"28","widgetId":"KE_dFrE5YI0Y","data":{"email":"b-visitor@example.com","message":"for owner B"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T04:57:21.619Z"},{"id":"8","widgetId":"KE_dFrE5YI0Y","data":{"email":"other@example.com","message":"other widget"},"country":null,"city":null,"createdAt":"2026-10-06T02:21:56.483Z"}]}
+HTTP 200
+```
+
+### Dashboard endpoints return basic analytics: counts over time, per widget, and a geo breakdown
+
+Stats for owner A over the last 30 days:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/stats?days=30" -H "Authorization: Bearer $TOKEN_A"
+```
+
+```text
+{"days":30,"total":26,"perDay":[{"day":"2026-10-06","count":26}],"perWidget":[{"widgetId":"9XaNF0jKmUQA","title":"Contact us","count":26}],"perCountry":[{"country":"Mockland A","count":16},{"country":"Unknown","count":9},{"country":"Mockland B","count":1}]}
+HTTP 200
+```
+
+Stats for owner B over the last 30 days. The numbers only count B's own submissions:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/stats?days=30" -H "Authorization: Bearer $TOKEN_B"
+```
+
+```text
+{"days":30,"total":2,"perDay":[{"day":"2026-10-06","count":2}],"perWidget":[{"widgetId":"KE_dFrE5YI0Y","title":"Contact us","count":2}],"perCountry":[{"country":"Mockland A","count":1},{"country":"Unknown","count":1}]}
+HTTP 200
+```
+
+The geo breakdown matches the earlier tests: the submissions with provider A, with provider B, and with both providers down (Unknown).

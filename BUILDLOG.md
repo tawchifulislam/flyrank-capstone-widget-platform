@@ -18,6 +18,8 @@
 - Designed the two layer delivery: a stable loader URL with a short cache, and a content-hash bundle URL with a one year immutable cache
 - Wrote the first version of the widget bundle (form rendering from the config, hidden honeypot field, submit and error messages) and scripts/test-bundle.sh
 - Wrote the plain HTML customer site and the steps to serve it on a second port and capture browser evidence
+- Designed the dashboard endpoints, the SQL for counts per day, per widget, and per country, and scripts/test-dashboard.sh with the cross tenant checks
+- Wrote scripts/refresh-tokens.sh so the test tokens in .env can be renewed with one command
 
 ## Where AI was wrong or needed fixing
 
@@ -32,8 +34,9 @@
 - The test script output does not contain the server log, so the proof of the retries and the ALERT could not come from the script file alone. I copied the server log lines from the terminal that runs the server.
 - The first run of the config test printed empty output because the server was not answering and curl -s hid the connection failure. I checked the server terminal and the order of the lines in src/server.js, fixed it, restarted the server, and the test passed.
 - My first check that an old bundle URL stops working used the placeholder text PURANO_HASH instead of the real old hash. The 404 it printed proved nothing, because that text is never a valid hash. I reran it with the real old hash (b604ead95f) and got 404 for old and 200 for new.
-- My first look at the odd spacing in a stored message ("froma") assumed a copy and paste error. It was the text that was really typed into the form and stored, so the evidence keeps the real output.
+- I first told myself that the odd spacing in a stored message ("froma") was the real stored text. The dashboard output later showed the stored text is correct ("from a"), so the earlier copy of the psql output had been altered. I replaced it with a fresh copy straight from the terminal.
 - The first network screenshot hid the host of the requests and mixed in requests from browser extensions. I retook the proof as a Headers panel screenshot that shows the request URL, the Origin header, the status, and the CORS response header together.
+- I expected owner B to have zero submissions in the first dashboard check. It had one, from the abuse test that posted to B's widget. The result was correct and my expectation was wrong, so the evidence describes what really happened.
 
 ## What I changed and why
 
@@ -67,3 +70,7 @@
 - Known limit: after a release the old bundle URL returns 404. A customer page that cached the old loader (up to 5 minutes) can fail to load the widget until the cache expires. This goes into the README limitations note.
 - The customer site is only an HTML file and one script tag, so it proves the embed works on a page I do not build around the API
 - The page prints its own origin, so every screenshot shows that the page and the API are different origins
+- Every dashboard query filters on owner_id, and the widget filter first checks that the widget belongs to the owner, so a foreign widget id returns 404 and not an empty list
+- The dashboard never returns the visitor IP, only the country and the city, so the owner gets the analytics without the personal data
+- The page size is limited to 100 and the stats window to 365 days, and bad values return a clean 400
+- Counts per day use the database time, which is UTC in the Docker container
