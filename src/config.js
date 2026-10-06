@@ -11,4 +11,6 @@ module.exports = {
   geoProviderAEnabled: process.env.GEO_PROVIDER_A_ENABLED !== 'false',
   geoProviderBEnabled: process.env.GEO_PROVIDER_B_ENABLED !== 'false',
   emailSideEffectFail: process.env.EMAIL_SIDE_EFFECT_FAIL === 'true',
+  jwtSecret: process.env.JWT_SECRET,
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
 };
