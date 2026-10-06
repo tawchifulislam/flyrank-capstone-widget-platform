@@ -18,4 +18,6 @@ module.exports = {
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX) || 5,
   ipRateLimitWindowMs: Number(process.env.IP_RATE_LIMIT_WINDOW_MS) || 60000,
   ipRateLimitMax: Number(process.env.IP_RATE_LIMIT_MAX) || 60,
+  geoMode: process.env.GEO_MODE || 'real',
+  geoTimeoutMs: Number(process.env.GEO_TIMEOUT_MS) || 2000,
 };

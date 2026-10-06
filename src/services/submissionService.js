@@ -2,6 +2,7 @@ const { z } = require('zod');
 const { HttpError } = require('../errors');
 const widgetRepository = require('../repositories/widgetRepository');
 const submissionRepository = require('../repositories/submissionRepository');
+const geoService = require('./geoService');
 
 const bodySchema = z.object({
   widgetId: z.string().min(1).max(64),
@@ -29,7 +30,7 @@ function buildFieldSchema(field) {
   return schema.optional();
 }
 
-async function submit(body, ip) {
+async function submit(body, ip, options = {}) {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     throw new HttpError(400, 'Invalid submission payload');
@@ -50,11 +51,14 @@ async function submit(body, ip) {
   if (!dataResult.success) {
     throw new HttpError(400, 'Invalid form data');
   }
+  const geo = await geoService.enrich(ip, { mockDown: options.mockGeoDown });
   const row = await submissionRepository.create({
     widgetId: widget.id,
     ownerId: widget.owner_id,
     data: dataResult.data,
     ip,
+    country: geo ? geo.country : null,
+    city: geo ? geo.city : null,
   });
   return { id: row.id };
 }
