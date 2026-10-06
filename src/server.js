@@ -4,10 +4,13 @@ const authRoutes = require('./routes/auth');
 const widgetRoutes = require('./routes/widgets');
 const publicCors = require('./middleware/publicCors');
 const submissionRoutes = require('./routes/submissions');
+const { ipLimiter, widgetLimiter } = require('./middleware/rateLimit');
 
 const app = express();
 
 app.use(express.json({ limit: '10kb' }));
+
+app.use('/submissions', publicCors, ipLimiter, widgetLimiter, submissionRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -15,7 +18,6 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/widgets', widgetRoutes);
-app.use('/submissions', publicCors, submissionRoutes);
 
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {

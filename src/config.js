@@ -14,4 +14,8 @@ module.exports = {
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1h',
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:3001',
+  rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 10000,
+  rateLimitMax: Number(process.env.RATE_LIMIT_MAX) || 5,
+  ipRateLimitWindowMs: Number(process.env.IP_RATE_LIMIT_WINDOW_MS) || 60000,
+  ipRateLimitMax: Number(process.env.IP_RATE_LIMIT_MAX) || 60,
 };

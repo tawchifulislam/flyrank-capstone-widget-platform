@@ -34,6 +34,10 @@ async function submit(body, ip) {
   if (!parsed.success) {
     throw new HttpError(400, 'Invalid submission payload');
   }
+  if (parsed.data.honeypot && parsed.data.honeypot.length > 0) {
+    console.warn('Honeypot triggered', ip);
+    return { id: '0' };
+  }
   const widget = await widgetRepository.findPublicById(parsed.data.widgetId);
   if (!widget) {
     throw new HttpError(404, 'Widget not found');
