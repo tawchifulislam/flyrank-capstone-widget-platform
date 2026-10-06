@@ -22,6 +22,8 @@
 - Wrote scripts/refresh-tokens.sh so the test tokens in .env can be renewed with one command
 - Wrote the Dockerfile, the compose file with a database health check, the idempotent seed script, and scripts/clean-run.sh that proves a start from nothing
 - Designed the idempotency key flow (header, partial unique index, replay answered with 200) and wrote scripts/test-idempotency.sh with the retry and parallel cases
+- Wrote scripts/test-probes.sh, which runs the six acceptance probes and prints PASS or FAIL, the capstone.yaml manifest, and the first version of the README
+- Mapped every requirement to its proof in the requirements checklist at the end of EVIDENCE.md
 
 ## Where AI was wrong or needed fixing
 
@@ -42,6 +44,7 @@
 - Nothing broke in this step. The container log prints "injected env (0) from .env" because there is no .env file inside the container. It is harmless noise from the dotenv package.
 - Nothing failed in the API test. Adding the new header meant the CORS preflight had to allow it, otherwise a browser would block every submission, so I checked the widget in a real browser and not only with curl.
 - After the clean run wiped the database, the older customer-site/index.html (widget 9XaNF0jKmUQA) no longer worked. The demo page customer-site/demo.html uses the seeded demo-widget.
+- I said the probe script would print about 20 passing checks. It printed 17. The count was a bad guess and does not matter, all checks pass.
 
 ## What I changed and why
 
@@ -88,3 +91,5 @@
 - A replay returns the original id with status 200 and skips the geo lookup and the email, so the retried action happens once
 - The widget creates a new key when the form is shown and again after each successful submission. A failed attempt reuses the same key, so retrying it cannot create a duplicate.
 - Known limits: a key sent again with different data returns the first submission and does not report a mismatch, and keys never expire. This goes into the README limitations note.
+- The probe script waits for the rate limit window between probes so the checks do not disturb each other. This is why it runs for about a minute.
+- The README names its known limits openly, including the memory-only rate limit and email job

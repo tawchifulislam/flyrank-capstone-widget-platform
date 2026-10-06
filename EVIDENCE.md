@@ -1,6 +1,6 @@
 # Evidence
 
-Tokens are replaced by the shell variables $TOKEN_A and $TOKEN_B (two different owners). Owner A created widget 9XaNF0jKmUQA.
+The sections up to "Owner dashboard" were recorded on my development database, so they use the widget ids of that time (9XaNF0jKmUQA and KE_dFrE5YI0Y). The sections "Run from a clean machine", "Idempotency", and "Evaluator probes" were recorded on a fresh database with the seeded demo-widget, and can be repeated with the commands in the README. The scripts in the scripts folder that mention the older widget ids belong to the earlier proofs. The scripts clean-run.sh and test-probes.sh work on any clean machine.
 
 ## Widget management
 
@@ -1002,3 +1002,81 @@ The browser first sends a CORS preflight, because the request carries a custom h
 Then the real POST request from the demo customer site carries the header Idempotency-Key and the server answers 201:
 
 ![POST request with the Idempotency-Key header](docs/browser-idempotency-post.png)
+
+## Evaluator probes
+
+`scripts/test-probes.sh` runs the six acceptance probes of the brief against the running system (a fresh database with the seeded demo widget) and prints PASS or FAIL for each check.
+
+```text
+bash scripts/test-probes.sh
+```
+
+```text
+PROBE 1: valid submission from another origin is stored and visible in the dashboard
+PASS probe 1 returns 201
+PASS probe 1 submission is visible in the dashboard
+
+PROBE 2: malformed and oversized payloads give clean 4xx JSON errors, never 500
+PASS probe 2 malformed json returns 400
+PASS probe 2 malformed json error is JSON
+PASS probe 2 oversized payload returns 413
+PASS probe 2 oversized error is JSON
+
+PROBE 3: a burst returns 429 and the service keeps answering normal traffic
+PASS probe 3 burst returns 429 (7)
+PASS probe 3 health endpoint still answers during the burst window
+PASS probe 3 a normal request after the window returns 201
+
+PROBE 4: provider A down gives provider B enrichment, both down still stores the submission
+PASS probe 4 provider A down returns 201
+PASS probe 4 row is enriched by provider B
+PASS probe 4 both providers down returns 201
+PASS probe 4 row is stored without geo
+
+PROBE 5: a failing email side effect does not stop the submission
+PASS probe 5 returns 201
+PASS probe 5 submission is stored
+
+PROBE 6: a filled honeypot is dropped
+PASS probe 6 returns 201 without telling the bot
+PASS probe 6 nothing was stored
+
+passed 17, failed 0
+```
+
+## Requirements checklist
+
+Every box of the requirements list, with the section above that holds its proof.
+
+Widget management
+
+- [x] Authenticated CRUD endpoints for widgets, requests without valid auth are rejected. Proof: "Widget management", first section.
+- [x] Multi-tenant isolation proven, tenant A cannot read or modify tenant B's widgets or submissions. Proof: "Widget management" (widgets) and "Owner dashboard" (submissions).
+- [x] Embed snippet generated per widget. Proof: "Widget management", last section.
+
+Widget delivery
+
+- [x] Public config endpoint serves a small payload with correct HTTP cache headers. Proof: "Widget delivery", first section.
+- [x] Widget JavaScript is served as a versioned bundle (new version = new URL). Proof: "Widget delivery", bundle sections.
+- [x] The widget renders on a page served from a different origin. Proof: "Widget delivery", customer site section.
+
+Public submission API
+
+- [x] Cross-origin submissions work, CORS headers correct, preflight (OPTIONS) handled. Proof: "Public submission API", first section.
+- [x] All incoming input validated, malformed and oversized payloads rejected with 4xx codes and JSON errors. Proof: "Public submission API", second section, and probe 2.
+- [x] Valid submissions stored safely, linked to the right widget and tenant. Proof: "Public submission API", third section.
+
+Abuse protection
+
+- [x] Rate limiting returns 429 under a burst and the API keeps serving legitimate traffic. Proof: "Abuse protection", first section, and probe 3.
+- [x] At least one spam-prevention technique demonstrably blocks a spam submission. Proof: "Abuse protection", honeypot section, and probe 6.
+
+Enrichment and safe side effects
+
+- [x] IP to geo enrichment uses a provider fallback chain, provider A down and provider B answers. Proof: "Enrichment and safe side effects", first section, and probe 4.
+- [x] All providers down, the submission still succeeds without geo. Proof: "Enrichment and safe side effects", second section, and probe 4.
+- [x] A failing confirmation email does not prevent the submission from being stored. Proof: "Enrichment and safe side effects", last section, and probe 5.
+
+Documentation
+
+- [x] README with architecture diagram, setup instructions, and API documentation, and the required files present (README.md, capstone.yaml, EVIDENCE.md, BUILDLOG.md, .env.example). Proof: the files in the repository root.

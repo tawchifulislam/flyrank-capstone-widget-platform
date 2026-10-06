@@ -139,6 +139,18 @@ Every item has a pasted proof in [EVIDENCE.md](EVIDENCE.md). How the AI helped, 
 | Dashboard | `src/routes/dashboard.js`, evidence section "Owner dashboard" |
 | Idempotency | `migrations/003_idempotency.sql`, evidence section "Idempotency" |
 
+### Shared requirements of every capstone
+
+| Requirement | How |
+| --- | --- |
+| Layered architecture | routes (HTTP), services (rules), repositories (SQL) |
+| Validation at the boundary | zod schemas, clean 4xx errors, never a 500 for bad input |
+| At least one background job | the email job: 3 attempts, growing wait, an ALERT log line when all attempts fail |
+| Real persistence | SQL migrations, indexes, an owner column on every tenant table |
+| Idempotency where it matters | the Idempotency-Key header on POST /submissions |
+| Secrets clean | environment variables only, .env is git-ignored, placeholders in .env.example, secrets are never logged |
+| Cost tracking if AI is used | the platform makes no AI calls, so there is nothing to track |
+
 ## Known limitations
 
 - The rate limit counters and the email job live in the memory of one server process. They reset on restart and are not shared between several copies of the server. A crash during email retries loses that job.
