@@ -8,6 +8,8 @@
 - Arranged the curl test commands so each one shows its HTTP status code
 - Wrote the first version of the public submission endpoint: CORS middleware, per-widget validation built from the widget field definitions, and the repository insert
 - Wrote scripts/test-submissions.sh so all submission tests run together and the output is captured to a file
+- Designed the two-layer rate limiter (per IP and widget, plus per IP overall) and the honeypot check
+- Wrote scripts/test-abuse.sh so the burst, the recovery, and the honeypot tests run in one go
 
 ## Where AI was wrong or needed fixing
 
@@ -17,6 +19,7 @@
 - The expected result for owner B's widget list was an empty list. It was not empty because owner B had created its own widget earlier. The result is still correct, because B only sees its own widget.
 - My first test commands printed their output straight to the terminal, so most of it scrolled away and I could not paste it into EVIDENCE.md. I fixed this with a script that writes everything to a file.
 - psql opened a pager after the last query, so the terminal showed only a colon. I fixed it by passing -P pager=off in the script.
+- Nothing broke in this step. One limit of the design: a burst on one widget blocks that visitor on that widget until the 10 second window ends, so the test for "legitimate traffic still works" uses a different widget and the health endpoint.
 
 ## What I changed and why
 
@@ -28,3 +31,7 @@
 - Validation builds a zod schema from the widget's own field list and rejects unknown fields, so a visitor can only send what the widget defines
 - The request body limit is 10kb, so oversized payloads fail with 413 before reaching business logic
 - owner_id is copied from the widget row, never from the request body
+- The limiter is keyed on IP plus widget id, so a flood against one widget cannot stop other widgets. A second limiter per IP across all widgets stops a bot that rotates widget ids.
+- Limits live in .env (RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX, IP_RATE_LIMIT_WINDOW_MS, IP_RATE_LIMIT_MAX) so they can be changed without code changes
+- A filled honeypot returns a normal looking 201 and stores nothing, so the bot gets no hint about why it was dropped
+- The rate limit counters are in memory. They reset on restart and are not shared between several server copies. This goes into the README limitations note.

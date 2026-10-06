@@ -256,3 +256,77 @@ docker compose exec -T db psql -U widget -d widgets -P pager=off -c "select id, 
 ```
 
 Only the valid submissions were stored. Every rejected request above left no row. The owner_id is copied from the widget, not from the request.
+
+## Abuse protection
+
+All requests below come from `scripts/test-abuse.sh`. The limit is 5 submissions per 10 seconds for one IP on one widget, plus 60 per minute for one IP across all widgets.
+
+### Rate limiting per IP and per widget returns 429 under a burst, and the API keeps serving legitimate traffic
+
+Burst of 12 rapid submissions to widget 9XaNF0jKmUQA (status codes in order):
+
+```text
+201 201 201 201 201 429 429 429 429 429 429 429 
+```
+
+One rejected request in detail (it still carries the CORS header, so a browser can read the error):
+
+```text
+HTTP/1.1 429 Too Many Requests
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+RateLimit-Policy: 5;w=10
+RateLimit-Limit: 5
+RateLimit-Remaining: 0
+RateLimit-Reset: 10
+Retry-After: 10
+Content-Type: application/json; charset=utf-8
+Content-Length: 29
+ETag: W/"1d-ixoIu9etr4N1apujqUUt8TNktbw"
+Date: Tue, 06 Oct 2026 02:21:56 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"error":"Too many requests"}
+```
+
+Right after the burst, a submission to another widget and the health endpoint still succeed:
+
+```text
+{"id":"8"}
+HTTP 201
+{"status":"ok"}
+HTTP 200
+```
+
+After the 10 second window passes, the burst widget accepts submissions again:
+
+```text
+{"id":"9"}
+HTTP 201
+```
+
+### At least one spam-prevention technique demonstrably blocks a spam submission (honeypot field)
+
+A submission with the hidden honeypot field filled in, like a bot would do. The response looks like a success, but no row is stored:
+
+```text
+rows before:
+9
+{"id":"0"}
+HTTP 201
+rows after:
+9
+```
+
+Stored rows by email after all tests: the 5 burst submissions that were accepted are there, <bot@example.com> is not:
+
+```text
+        email        | count 
+---------------------+-------
+ burst@example.com   |     5
+ normal@example.com  |     1
+ other@example.com   |     1
+ visitor@example.com |     2
+(4 rows)
+```
