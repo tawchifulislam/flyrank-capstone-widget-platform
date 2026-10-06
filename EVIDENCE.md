@@ -508,3 +508,100 @@ Keep-Alive: timeout=5
 
 {"error":"Widget not found"}
 ```
+
+### Widget JavaScript is served as a versioned bundle (new version = new URL)
+
+The embed snippet never changes: `<script src="http://localhost:3001/widget.js?id=9XaNF0jKmUQA"></script>`. That URL returns a small loader with a short cache (5 minutes). The loader loads the real bundle from a URL that contains a hash of the bundle content. The bundle has a one year immutable cache. All requests below come from `scripts/test-bundle.sh`.
+
+Loader, short cache (first lines of the body shown):
+
+```text
+curl -s -i "http://localhost:3001/widget.js?id=9XaNF0jKmUQA" | head -n 12
+```
+
+```text
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Cache-Control: public, max-age=300
+Content-Type: application/javascript; charset=utf-8
+Content-Length: 638
+ETag: W/"27e-qWwQ5+alJAQaKeCvpjPueOL52C0"
+Date: Tue, 06 Oct 2026 04:18:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+(function () {
+  var script = document.currentScript;
+```
+
+The bundle URL named inside the loader:
+
+```text
+curl -s "http://localhost:3001/widget.js?id=9XaNF0jKmUQA" | grep -o '/assets/widget\.[a-f0-9]*\.js'
+```
+
+```text
+/assets/widget.b604ead95f.js
+```
+
+Versioned bundle, long immutable cache:
+
+```text
+curl -s -i "http://localhost:3001/assets/widget.b604ead95f.js" | head -n 12
+```
+
+```text
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Cache-Control: public, max-age=31536000, immutable
+Content-Type: application/javascript; charset=utf-8
+Content-Length: 4537
+ETag: W/"11b9-4Azz7uwnlbZs1C7jvuDxYtFBw1w"
+Date: Tue, 06 Oct 2026 04:18:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+(function () {
+  var script = document.currentScript;
+```
+
+A hash that does not belong to the current bundle:
+
+```text
+curl -s -i "http://localhost:3001/assets/widget.0000000000.js"
+```
+
+```text
+HTTP/1.1 404 Not Found
+X-Powered-By: Express
+Content-Type: application/json; charset=utf-8
+Content-Length: 27
+ETag: W/"1b-buBjh7/AdMSvuzkyzKDPNq1TyKc"
+Date: Tue, 06 Oct 2026 04:18:28 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"error":"Asset not found"}
+```
+
+### A new release gets a new URL
+
+I changed one message text in `src/public/widget-bundle.js` and the server restarted. The loader now names a different bundle URL. The old URL stops working and the new one serves the bundle:
+
+```text
+curl -s "http://localhost:3001/widget.js?id=9XaNF0jKmUQA" | grep -o '/assets/widget\.[a-f0-9]*\.js'
+```
+
+```text
+/assets/widget.717ad8d007.js
+```
+
+```text
+curl -s -o /dev/null -w "old %{http_code}\n" http://localhost:3001/assets/widget.b604ead95f.js
+curl -s -o /dev/null -w "new %{http_code}\n" http://localhost:3001/assets/widget.717ad8d007.js
+```
+
+```text
+old 404
+new 200
+```
