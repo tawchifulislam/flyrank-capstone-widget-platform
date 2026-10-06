@@ -20,6 +20,7 @@
 - Wrote the plain HTML customer site and the steps to serve it on a second port and capture browser evidence
 - Designed the dashboard endpoints, the SQL for counts per day, per widget, and per country, and scripts/test-dashboard.sh with the cross tenant checks
 - Wrote scripts/refresh-tokens.sh so the test tokens in .env can be renewed with one command
+- Wrote the Dockerfile, the compose file with a database health check, the idempotent seed script, and scripts/clean-run.sh that proves a start from nothing
 
 ## Where AI was wrong or needed fixing
 
@@ -37,6 +38,7 @@
 - I first told myself that the odd spacing in a stored message ("froma") was the real stored text. The dashboard output later showed the stored text is correct ("from a"), so the earlier copy of the psql output had been altered. I replaced it with a fresh copy straight from the terminal.
 - The first network screenshot hid the host of the requests and mixed in requests from browser extensions. I retook the proof as a Headers panel screenshot that shows the request URL, the Origin header, the status, and the CORS response header together.
 - I expected owner B to have zero submissions in the first dashboard check. It had one, from the abuse test that posted to B's widget. The result was correct and my expectation was wrong, so the evidence describes what really happened.
+- Nothing broke in this step. The container log prints "injected env (0) from .env" because there is no .env file inside the container. It is harmless noise from the dotenv package.
 
 ## What I changed and why
 
@@ -74,3 +76,8 @@
 - The dashboard never returns the visitor IP, only the country and the city, so the owner gets the analytics without the personal data
 - The page size is limited to 100 and the stats window to 365 days, and bad values return a clean 400
 - Counts per day use the database time, which is UTC in the Docker container
+- The app container reads .env.example, so a stranger can run docker compose up without creating any file. Only DATABASE_URL and PUBLIC_BASE_URL are overridden in the compose file.
+- The container runs the migrations before the server starts, so the schema is always in place
+- The seed step is separate and safe to run twice. It creates one demo owner and one demo widget (demo-widget), so there is something to try on a clean machine.
+- The demo owner password and the JWT_SECRET placeholder in .env.example are public demo values. A real deployment must set its own secret. This goes into the README.
+- A new page customer-site/demo.html embeds the demo widget. The older index.html is left as it was, because the earlier evidence refers to it.

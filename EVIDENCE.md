@@ -781,3 +781,123 @@ HTTP 200
 ```
 
 The geo breakdown matches the earlier tests: the submissions with provider A, with provider B, and with both providers down (Unknown).
+
+## Run from a clean machine
+
+The whole system starts with Docker. `scripts/clean-run.sh` removes all containers and the database volume first, so the run starts from nothing. It builds the app image, starts the database and the app, waits for the health endpoint, runs the seed step, and then uses the system as a visitor and as the owner. The app container reads its settings from `.env.example`, so no `.env` file is needed.
+
+```text
+bash scripts/clean-run.sh
+```
+
+Remove everything, including the database volume:
+
+```text
+ Container flyrank-capstone-widget-platform-db-1 Stopping 
+ Container flyrank-capstone-widget-platform-db-1 Stopped 
+ Container flyrank-capstone-widget-platform-db-1 Removing 
+ Container flyrank-capstone-widget-platform-db-1 Removed 
+ Volume flyrank-capstone-widget-platform_pgdata Removing 
+ Network flyrank-capstone-widget-platform_default Removing 
+ Volume flyrank-capstone-widget-platform_pgdata Removed 
+ Network flyrank-capstone-widget-platform_default Removed 
+```
+
+Build and start (the app waits until the database is healthy):
+
+```text
+ Image flyrank-capstone-widget-platform-app Building 
+ Image flyrank-capstone-widget-platform-app Built 
+ Network flyrank-capstone-widget-platform_default Creating 
+ Volume flyrank-capstone-widget-platform_pgdata Creating 
+ Network flyrank-capstone-widget-platform_default Creating 
+ Volume flyrank-capstone-widget-platform_pgdata Creating 
+ Volume flyrank-capstone-widget-platform_pgdata Created 
+ Volume flyrank-capstone-widget-platform_pgdata Created 
+ Network flyrank-capstone-widget-platform_default Created 
+ Network flyrank-capstone-widget-platform_default Created 
+ Container flyrank-capstone-widget-platform-db-1 Creating 
+ Container flyrank-capstone-widget-platform-db-1 Created 
+ Container flyrank-capstone-widget-platform-app-1 Creating 
+ Container flyrank-capstone-widget-platform-app-1 Created 
+ Container flyrank-capstone-widget-platform-db-1 Starting 
+ Container flyrank-capstone-widget-platform-db-1 Started 
+ Container flyrank-capstone-widget-platform-db-1 Waiting 
+ Container flyrank-capstone-widget-platform-db-1 Healthy 
+ Container flyrank-capstone-widget-platform-app-1 Starting 
+ Container flyrank-capstone-widget-platform-app-1 Started 
+```
+
+Health endpoint:
+
+```text
+{"status":"ok"}
+HTTP 200
+```
+
+Containers and the app log. The migrations ran on start:
+
+```text
+NAME                                     IMAGE                                  COMMAND                  SERVICE   CREATED         STATUS                   PORTS
+flyrank-capstone-widget-platform-app-1   flyrank-capstone-widget-platform-app   "docker-entrypoint.s…"   app       6 seconds ago   Up 2 seconds             0.0.0.0:3001->3001/tcp, [::]:3001->3001/tcp
+flyrank-capstone-widget-platform-db-1    postgres:16                            "docker-entrypoint.s…"   db        7 seconds ago   Up 6 seconds (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+app-1  | > flyrank-capstone-widget-platform@1.0.0 migrate
+app-1  | > node src/db/migrate.js
+app-1  | 
+app-1  | ◇ injected env (0) from .env
+app-1  | Applied 001_init.sql
+app-1  | Applied 002_users.sql
+app-1  | 
+app-1  | > flyrank-capstone-widget-platform@1.0.0 start
+app-1  | > node src/server.js
+app-1  | 
+app-1  | ◇ injected env (0) from .env
+app-1  | Server running on port 3001
+```
+
+Seed step (creates the demo owner and the demo widget, safe to run twice):
+
+```text
+docker compose exec -T app npm run seed
+```
+
+```text
+> flyrank-capstone-widget-platform@1.0.0 seed
+> node src/db/seed.js
+
+◇ injected env (0) from .env
+Seeded owner demo@example.com and widget demo-widget
+```
+
+Demo widget config:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" http://localhost:3001/widgets/demo-widget/config
+```
+
+```text
+{"id":"demo-widget","type":"contact","title":"Contact us","description":"Send us a message","buttonText":"Send","fields":[{"name":"email","type":"email","label":"Email","required":true},{"name":"message","type":"textarea","label":"Message","required":true}],"displayOptions":{},"version":1}
+HTTP 200
+```
+
+A visitor submits to the demo widget:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3001/submissions -H "Content-Type: application/json" -d '{"widgetId":"demo-widget","data":{"email":"demo-visitor@example.com","message":"hello from a clean run"}}'
+```
+
+```text
+{"id":"1"}
+HTTP 201
+```
+
+The demo owner logs in and reads the dashboard:
+
+```text
+curl -s -w "\nHTTP %{http_code}\n" "http://localhost:3001/api/dashboard/submissions" -H "Authorization: Bearer $TOKEN"
+```
+
+```text
+{"total":1,"limit":20,"offset":0,"items":[{"id":"1","widgetId":"demo-widget","data":{"email":"demo-visitor@example.com","message":"hello from a clean run"},"country":"Mockland A","city":"Alpha City","createdAt":"2026-10-06T05:10:38.549Z"}]}
+HTTP 200
+```
