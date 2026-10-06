@@ -14,6 +14,7 @@
 - Wrote scripts/test-geo.sh so the three fallback cases run together
 - Designed the email side effect as a background job with 3 attempts, growing waits, and a final ALERT log
 - Wrote scripts/test-sideeffect.sh to run the working and the failing email case together
+- Designed the public config endpoint with a short cache time and an ETag, and wrote scripts/test-config.sh
 
 ## Where AI was wrong or needed fixing
 
@@ -26,6 +27,7 @@
 - Nothing broke in this step. One limit of the design: a burst on one widget blocks that visitor on that widget until the 10 second window ends, so the test for "legitimate traffic still works" uses a different widget and the health endpoint.
 - Nothing broke in this step. A real lookup cannot be shown from localhost because the visitor IP is ::1, which no provider can locate. That is why the proof uses mock providers.
 - The test script output does not contain the server log, so the proof of the retries and the ALERT could not come from the script file alone. I copied the server log lines from the terminal that runs the server.
+- The first run of the config test printed empty output because the server was not answering and curl -s hid the connection failure. I checked the server terminal and the order of the lines in src/server.js, fixed it, restarted the server, and the test passed.
 
 ## What I changed and why
 
@@ -49,3 +51,6 @@
 - Retry waits are 200 ms and then 400 ms, and after the third failure the job logs an ALERT line that a log monitor could match
 - Only the mock email mode exists. It writes the email to the console. Replacing sendEmail in src/services/notificationService.js is the only change needed for a real mail server.
 - The job lives in memory, so a server crash during the retries loses it. This goes into the README limitations note.
+- The config payload carries only what the browser needs to draw the form (type, texts, fields, display options, version) and never the owner id
+- The config is cached for 60 seconds so a busy customer site does not hit the database on every page view, and the ETag lets a browser check cheaply for changes after that
+- The config is public and allows any origin, because the widget runs on customer sites

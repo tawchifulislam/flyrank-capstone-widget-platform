@@ -434,3 +434,77 @@ Notification attempt 2/3 for submission 14 failed: mock email provider is down
 Notification attempt 3/3 for submission 14 failed: mock email provider is down
 ALERT: notification for submission 14 failed after 3 attempts
 ```
+
+## Widget delivery
+
+### Public config endpoint serves a small payload with correct HTTP cache headers
+
+All requests below come from `scripts/test-config.sh`. The header Origin: <http://localhost:5500> simulates a customer site on a different origin.
+
+Config request. The response is 291 bytes, public, cacheable for 60 seconds, and carries an ETag:
+
+```text
+curl -s -i http://localhost:3001/widgets/9XaNF0jKmUQA/config -H "Origin: http://localhost:5500"
+```
+
+```text
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Cache-Control: public, max-age=60
+Content-Type: application/json; charset=utf-8
+Content-Length: 291
+ETag: W/"123-IVTdEOFfCATYKRmYiT3e2t/iK+A"
+Date: Tue, 06 Oct 2026 04:10:19 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"id":"9XaNF0jKmUQA","type":"contact","title":"Contact us","description":"Send us a message","buttonText":"Send","fields":[{"name":"email","type":"email","label":"Email","required":true},{"name":"message","type":"textarea","label":"Message","required":true}],"displayOptions":{},"version":2}
+```
+
+Payload size in bytes:
+
+```text
+curl -s http://localhost:3001/widgets/9XaNF0jKmUQA/config | wc -c
+```
+
+```text
+291
+```
+
+A repeat request with the ETag. The server answers 304 with no body, so the browser reuses its copy:
+
+```text
+curl -s -i http://localhost:3001/widgets/9XaNF0jKmUQA/config -H "If-None-Match: W/\"123-IVTdEOFfCATYKRmYiT3e2t/iK+A\""
+```
+
+```text
+HTTP/1.1 304 Not Modified
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Cache-Control: public, max-age=60
+ETag: W/"123-IVTdEOFfCATYKRmYiT3e2t/iK+A"
+Date: Tue, 06 Oct 2026 04:10:19 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+```
+
+Unknown widget, clean JSON error:
+
+```text
+curl -s -i http://localhost:3001/widgets/unknown/config
+```
+
+```text
+HTTP/1.1 404 Not Found
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: application/json; charset=utf-8
+Content-Length: 28
+ETag: W/"1c-1v2nfekbeiJ9ZlfpgL3ZAOrWe6A"
+Date: Tue, 06 Oct 2026 04:10:19 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"error":"Widget not found"}
+```
