@@ -2,6 +2,8 @@ const express = require('express');
 const config = require('./config');
 const authRoutes = require('./routes/auth');
 const widgetRoutes = require('./routes/widgets');
+const publicCors = require('./middleware/publicCors');
+const submissionRoutes = require('./routes/submissions');
 
 const app = express();
 
@@ -13,6 +15,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/widgets', widgetRoutes);
+app.use('/submissions', publicCors, submissionRoutes);
 
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') {
