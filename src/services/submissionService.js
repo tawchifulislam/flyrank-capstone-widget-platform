@@ -11,6 +11,8 @@ const bodySchema = z.object({
   honeypot: z.string().max(200).optional(),
 });
 
+const keyPattern = /^[A-Za-z0-9_-]{8,100}$/;
+
 function buildFieldSchema(field) {
   let schema;
   if (field.type === 'email') {
@@ -36,9 +38,13 @@ async function submit(body, ip, options = {}) {
   if (!parsed.success) {
     throw new HttpError(400, 'Invalid submission payload');
   }
+  const idempotencyKey = options.idempotencyKey || null;
+  if (idempotencyKey !== null && !keyPattern.test(idempotencyKey)) {
+    throw new HttpError(400, 'Invalid Idempotency-Key');
+  }
   if (parsed.data.honeypot && parsed.data.honeypot.length > 0) {
     console.warn('Honeypot triggered', ip);
-    return { id: '0' };
+    return { id: '0', replayed: false };
   }
   const widget = await widgetRepository.findPublicById(parsed.data.widgetId);
   if (!widget) {
@@ -52,6 +58,15 @@ async function submit(body, ip, options = {}) {
   if (!dataResult.success) {
     throw new HttpError(400, 'Invalid form data');
   }
+  if (idempotencyKey) {
+    const existing = await submissionRepository.findByIdempotencyKey(
+      widget.id,
+      idempotencyKey,
+    );
+    if (existing) {
+      return { id: existing.id, replayed: true };
+    }
+  }
   const geo = await geoService.enrich(ip, { mockDown: options.mockGeoDown });
   const row = await submissionRepository.create({
     widgetId: widget.id,
@@ -60,12 +75,20 @@ async function submit(body, ip, options = {}) {
     ip,
     country: geo ? geo.country : null,
     city: geo ? geo.city : null,
+    idempotencyKey,
   });
+  if (!row) {
+    const existing = await submissionRepository.findByIdempotencyKey(
+      widget.id,
+      idempotencyKey,
+    );
+    return { id: existing.id, replayed: true };
+  }
   notificationService.dispatch(
     { id: row.id, widgetId: widget.id, ownerId: widget.owner_id },
     { mockFail: options.mockEmailFail === 'true' },
   );
-  return { id: row.id };
+  return { id: row.id, replayed: false };
 }
 
 module.exports = { submit };

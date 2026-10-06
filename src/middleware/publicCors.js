@@ -3,6 +3,6 @@ const cors = require('cors');
 module.exports = cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Idempotency-Key'],
   maxAge: 600,
 });

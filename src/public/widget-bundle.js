@@ -28,6 +28,18 @@
     box.style.color = ok ? '#0a7a3d' : '#b00020';
   }
 
+  function newKey() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    var key = '';
+    for (var i = 0; i < 32; i += 1) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return key;
+  }
+
   function render(config) {
     container.textContent = '';
     var wrap = make(
@@ -42,6 +54,7 @@
     }
     var form = document.createElement('form');
     var inputs = {};
+    var idempotencyKey = newKey();
     config.fields.forEach(function (field) {
       var label = make(
         'label',
@@ -103,7 +116,10 @@
       button.disabled = true;
       fetch(api + '/submissions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
         body: JSON.stringify({
           widgetId: widgetId,
           data: data,
@@ -111,8 +127,9 @@
         }),
       })
         .then(function (res) {
-          if (res.status === 201) {
+          if (res.status === 201 || res.status === 200) {
             form.reset();
+            idempotencyKey = newKey();
             showMessage(
               message,
               'Thank you, your message has been received.',

@@ -8,8 +8,9 @@ router.post('/', async (req, res, next) => {
     const result = await submissionService.submit(req.body, req.ip, {
       mockGeoDown: req.get('x-mock-geo-down'),
       mockEmailFail: req.get('x-mock-email-fail'),
+      idempotencyKey: req.get('idempotency-Key'),
     });
-    res.status(201).json(result);
+    res.status(result.replayed ? 200 : 201).json({ id: result.id });
   } catch (err) {
     next(err);
   }
